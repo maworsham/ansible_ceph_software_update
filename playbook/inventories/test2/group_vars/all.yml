@@ -1,0 +1,12 @@
+---
+alias: "test2.example.com"
+alias_short: "test2"
+
+dashboard_health_username: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          12345678901234567891234567
+
+dashboard_health_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          12345678901234567891234567
+

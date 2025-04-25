@@ -1,0 +1,9 @@
+---
+
+- name: "Unset noout for all OSDs"
+  ansible.builtin.shell:
+    cmd: "sudo /sbin/cephadm shell -- ceph osd unset noout"
+  become: true
+  become_user: cephadm
+  delegate_to: "{{ groups.cephadm[0] }}"
+  ignore_unreachable: false

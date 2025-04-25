@@ -1,0 +1,9 @@
+---
+
+- name: "Unset OSD noscrub and nodeep-scrub"
+  ansible.builtin.shell:
+    cmd: "sudo /sbin/cephadm shell -- ceph osd unset noscrub; sudo /sbin/cephadm shell -- ceph osd unset nodeep-scrub"
+  become: true
+  become_user: cephadm
+  delegate_to: "{{ groups.cephadm[0] }}"
+  ignore_unreachable: false

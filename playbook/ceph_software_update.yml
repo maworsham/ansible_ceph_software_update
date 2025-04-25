@@ -1,0 +1,44 @@
+# Check status of cluster and set in maintenance mode
+- hosts: cephadm[0]
+  tasks:
+    - name: "Check if cluster is healthy before starting the updates"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/cluster_status_healthy.yml
+    - name: "Disable alert mails"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/disable_alerts.yml
+    - name: "Disable scrubbing"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/set_osd_noscrub.yml
+    - name: "Check if cluster is healthy on Placement Groups and no scrubbing"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/cluster_status_scrub.yml
+  become: true
+
+# Update software and SOE of all hosts, run this all at once
+- hosts: all
+  order: sorted
+  serial: 100%
+  tasks:
+    - name: Update host packages
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/software_update.yml
+  become: true
+
+# Check if a reboot is needed, one host at a time
+- hosts: all
+  order: sorted
+  serial: 1
+  tasks:
+    - name: "Reboot host if necessary"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/reboot_after_software_update.yml
+  become: true
+
+# Check if cluster gets healthy after updating all hosts and disabling maintenance mode
+- hosts: cephadm[0]
+  tasks:
+    - name: "Enable scrubbing"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/unset_osd_noscrub.yml
+    - name: "Disable all noout"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/unset_osd_noout_all.yml
+    - name: "Check if cluster is healthy"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/cluster_status_healthy.yml
+    - name: "Enable alert mails"
+      ansible.builtin.import_tasks: roles/ceph_software_update/tasks/enable_alerts.yml
+  become: true
+

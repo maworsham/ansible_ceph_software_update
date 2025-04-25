@@ -1,0 +1,69 @@
+---
+
+- name: "Check if apt updated some packages"
+  ansible.builtin.stat:
+    path: "/tmp/apt_updates_done"
+  register: apt_updates
+
+- name: "Test if reboot is required"
+  ansible.builtin.command: needs-restarting --reboothint
+  register: reboot_required
+  ignore_errors: true # Because when a reboot is needed, exit code of command is 1
+  failed_when: false # Don't display error message when reboot is needed
+  changed_when: false # Command always results in changed
+
+- name: "Restart all Ceph services and if necessary do a reboot"
+  block:
+  - name: "Set cephadm host"
+    ansible.builtin.set_fact:
+      cephadm_host: "{% if inventory_hostname == (groups.cephadm | sort)[0] %}{{ (groups.cephadm | reverse)[0] }}{% else %}{{ (groups.cephadm | sort)[0] }}{% endif %}"
+
+  - name: "Set host in maintenance mode for restarting services and maybe a reboot"
+    ansible.builtin.shell:
+      cmd: "sudo /sbin/cephadm shell -- ceph orch host maintenance enter {{ inventory_hostname }} --force --yes-i-really-mean-it"
+    become: true
+    become_user: cephadm
+    delegate_to: "{{ cephadm_host }}"
+    ignore_unreachable: false
+
+  - name: "Reboot if required"
+    block:
+    - name: "Execute a reboot"
+      ansible.builtin.reboot:
+        connect_timeout: 10
+        reboot_timeout: 3600
+    
+    - name: "Wait 30 seconds after a reboot"
+      ansible.builtin.pause:
+        seconds: 30
+    
+    when: reboot_required.rc == 1
+
+  - name: "Check if host is Online and in Maintenance mode"
+    ansible.builtin.shell:
+      cmd: "sudo /sbin/cephadm shell -- ceph orch host ls --host_pattern {{ inventory_hostname }} --format json-pretty | jq '.[0].status'"
+    become: true
+    become_user: cephadm
+    delegate_to: "{{ cephadm_host }}"
+    ignore_unreachable: false
+    register: host_online
+    until: "(host_online.stdout | lower) == '\"maintenance\"'"
+    retries: 10 # 10 * 30 = 300 seconds before giving up
+    delay: 30 # Every 30 seconds
+
+  - name: "Get host out of maintenance mode"
+    ansible.builtin.shell:
+      cmd: "sudo /sbin/cephadm shell -- ceph orch host maintenance exit {{ inventory_hostname }}"
+    become: true
+    become_user: cephadm
+    delegate_to: "{{ cephadm_host }}"
+    ignore_unreachable: false
+    register: exit_maintenance
+    until: exit_maintenance.rc == 0
+    retries: 4 # 4 * 15 = 60 seconds before giving up
+    delay: 15 # Every 15 seconds
+  
+  when: apt_updates.stat.exists or reboot_required.rc == 1
+
+- name: "Check if cluster is healthy before continuing"
+  ansible.builtin.import_tasks: tasks/cluster_status.yml

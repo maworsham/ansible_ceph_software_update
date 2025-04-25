@@ -1,0 +1,17 @@
+- name: "Remove tmp file used after software updates"
+  ansible.builtin.file:
+    path: /tmp/apt_updates_done
+    state: absent
+
+# Update all applications
+- name: "Update all applications"
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist
+  register: apt_updates
+
+- name: "Write tmp file after software updates"
+  ansible.builtin.file:
+    path: /tmp/apt_updates_done
+    state: touch
+  when: apt_updates.changed

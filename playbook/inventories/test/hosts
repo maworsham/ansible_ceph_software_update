@@ -1,0 +1,37 @@
+---
+# Watch for the colon at the end for every host entry!
+
+# Hosts running cephadm also run mgr role
+cephadm:
+  hosts:
+    123.test.example.com:
+    124.test.example.com:
+
+mon:
+  hosts:
+    123.test.example.com:
+    124.test.example.com:
+    127.test.example.com:
+    128.test.example.com:
+    529.external.example.com:
+
+osd:
+  hosts:
+    234.test.example.com:
+    235.test.example.com:
+    237.test.example.com:
+    238.test.example.com:
+
+mds:
+  hosts:
+    345.test.example.com:
+    346.test.example.com:
+
+rgw:
+  hosts:
+    456.test.example.com:
+    457.test.example.com:
+
+tiebreaker:
+  hosts:
+    529.external.example.com:

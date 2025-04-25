@@ -1,0 +1,48 @@
+---
+
+- name: "Set cephadm host"
+  ansible.builtin.set_fact:
+    cephadm_host: "{% if inventory_hostname == (groups.cephadm | sort)[0] %}{{ (groups.cephadm | reverse)[0] }}{% else %}{{ (groups.cephadm | sort)[0] }}{% endif %}"
+
+- name: "Get authentication token for Dashboard REST API"
+  ansible.builtin.uri:
+    url: "https://{% if alias_short in [ 'broken' ] %}ghcephdashboard.{{ alias }}{% else %}{{ cephadm_host }}:8443{% endif %}/api/auth"
+    headers:
+      Accept: "application/vnd.ceph.api.v1.0+json"
+      Content-Type: "application/json"
+    body: "{ \"username\": \"{{ dashboard_health_username }}\", \"password\": \"{{ dashboard_health_password }}\" }"
+    body_format: json
+    method: POST
+    status_code: [200, 201, 202]
+    return_content: true
+    follow_redirects: none
+  register: dashboard_auth
+  no_log: true
+  retries: 3
+  delay: 10 # Every 10 seconds
+
+- name: "Get state of cluster and wait for it to be healthy after the host upgrades"
+  ansible.builtin.uri:
+    url: "https://{% if alias_short in [ 'broken' ] %}ghcephdashboard.{{ alias }}{% else %}{{ cephadm_host }}:8443{% endif %}/api/health/minimal"
+    headers:
+      Accept: "application/vnd.ceph.api.v1.0+json"
+      Authorization: "Bearer {{ dashboard_auth.json.token }}"
+    #body_format: json
+    body_format: raw
+    method: GET
+    status_code: 200
+    return_content: true
+    follow_redirects: none
+  register: webresult
+  # until:
+    # - webresult.json.health.status == "HEALTH_OK"
+    # - webresult.json.pg_info.object_stats.num_objects_degraded == 0
+    # - webresult.json.pg_info.object_stats.num_objects_misplaced == 0
+    # - webresult.json.pg_info.object_stats.num_objects_unfound == 0
+  until:
+    - (webresult.content | from_json).health.status == "HEALTH_OK"
+    - (webresult.content | from_json).pg_info.object_stats.num_objects_degraded == 0
+    - (webresult.content | from_json).pg_info.object_stats.num_objects_misplaced == 0
+    - (webresult.content | from_json).pg_info.object_stats.num_objects_unfound == 0
+  retries: 180 # 180 * 10 seconds = 0.5 hour
+  delay: 10 # Every 10 seconds

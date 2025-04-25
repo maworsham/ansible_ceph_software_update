@@ -1,0 +1,9 @@
+---
+
+- name: "Disable alert mails"
+  ansible.builtin.shell:
+    cmd: "sudo /sbin/cephadm shell -- ceph mgr module disable alerts"
+  become: true
+  become_user: cephadm
+  delegate_to: "{{ groups.cephadm[0] }}"
+  ignore_unreachable: false
